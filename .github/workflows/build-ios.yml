@@ -11,7 +11,7 @@ on:
 jobs:
   build:
     name: Build Unsigned IPA for Sideloading
-    runs-on: macos-latest # Otomatis pilih runner macOS yang didukung akun GitHub Anda
+    runs-on: macos-13 # Intel macOS Ventura runner (Xcode terinstall & kompatibel semua tier GitHub)
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
