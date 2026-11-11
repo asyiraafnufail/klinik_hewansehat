@@ -1,0 +1,41 @@
+name: Supabase Keepalive Heartbeat
+
+on:
+  schedule:
+    # Berjalan tiap 3 hari jam 06:00 UTC (Supabase free tier pause otomatis jika 7 hari tanpa request)
+    - cron: '0 6 */3 * *'
+  workflow_dispatch: # Tombol manual trigger di tab GitHub Actions
+
+jobs:
+  ping:
+    name: Ping Supabase REST API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Heartbeat Request
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Secrets SUPABASE_URL atau SUPABASE_ANON_KEY belum di-set di GitHub Secrets!"
+            echo "Buka: GitHub Repo -> Settings -> Secrets and variables -> Actions -> New repository secret"
+            exit 1
+          fi
+
+          echo "Mengirim keepalive heartbeat ke Supabase..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X GET \
+            "${SUPABASE_URL}/rest/v1/services?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
+
+          echo "HTTP Status: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "Success: Supabase project aktif! Pause dicegah."
+          else
+            echo "::error::Supabase response gagal (HTTP $HTTP_STATUS): $BODY"
+            exit 1
+          fi

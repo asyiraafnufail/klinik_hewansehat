@@ -1,0 +1,77 @@
+name: Build iOS IPA (Unsigned)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'Build Number'
+        required: false
+        default: '1'
+
+jobs:
+  build:
+    name: Build Unsigned IPA for Sideloading
+    runs-on: macos-14 # macOS runner dengan Xcode dan SDK iOS lengkap
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Prepare Config
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          # Jika supabase_config.dart di-ignore git, gunakan template example agar compile aman
+          if [ ! -f "lib/core/config/supabase_config.dart" ]; then
+            cp lib/core/config/supabase_config.example.dart lib/core/config/supabase_config.dart
+          fi
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            if grep -q "YOUR_SUPABASE" lib/core/config/supabase_config.dart; then
+              echo "::error::Secrets SUPABASE_URL atau SUPABASE_ANON_KEY belum di-set di GitHub Secrets!"
+              echo "Tambahkan di: GitHub Repo -> Settings -> Secrets and variables -> Actions"
+              exit 1
+            fi
+          fi
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build iOS Release Without Codesign
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          DEFINES=""
+          if [ -n "$SUPABASE_URL" ]; then
+            DEFINES="$DEFINES --dart-define=SUPABASE_URL=$SUPABASE_URL"
+          fi
+          if [ -n "$SUPABASE_ANON_KEY" ]; then
+            DEFINES="$DEFINES --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+          fi
+          flutter build ios --release --no-codesign --build-number=${{ github.event.inputs.build_number || 1 }} $DEFINES
+
+      - name: Package Runner.app to IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r KlinikHewanSehat.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KlinikHewanSehat-ipa
+          path: KlinikHewanSehat.ipa
+          retention-days: 14
