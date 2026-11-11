@@ -11,7 +11,7 @@ on:
 jobs:
   build:
     name: Build Unsigned IPA for Sideloading
-    runs-on: macos-13 # Intel macOS Ventura runner (Xcode terinstall & kompatibel semua tier GitHub)
+    runs-on: macos-15 # Runner cloud Mac terbaru (tidak harus sama dengan macOS 13 di laptop lokal)
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
